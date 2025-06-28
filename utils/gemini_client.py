@@ -31,11 +31,11 @@ class GeminiClient:
         try:
             # Try to get API key from Streamlit secrets first
             if hasattr(st, 'secrets') and 'GOOGLE_API_KEY' in st.secrets:
-                self.api_key = st.secrets['GOOGLE_API_KEY']
+                self.api_key = "AIzaSyCdT5rcuoul65C9zzYyVweYP_SsTTepRo8"
             else:
                 # Fallback to environment variable for local development
                 import os
-                self.api_key = os.getenv('GOOGLE_API_KEY')
+                self.api_key = "AIzaSyCdT5rcuoul65C9zzYyVweYP_SsTTepRo8"
 
             if not self.api_key:
                 st.error("⚠️ Google API Key not found. Please add it to Streamlit secrets.")
