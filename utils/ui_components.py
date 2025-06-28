@@ -1,424 +1,470 @@
+"""
+UI Components for Enhanced Resume Analyzer
+Provides reusable, styled Streamlit components with consistent theming.
+"""
+
 import streamlit as st
+import plotly.graph_objects as go
+import plotly.express as px
+from typing import Dict, Any, List, Optional
 import base64
-from pathlib import Path
+from datetime import datetime
 
 def load_custom_css():
-    """Load custom CSS for modern UI styling"""
-    css_content = """
+    """Load custom CSS for enhanced UI styling."""
+    css = """
     <style>
     /* Import Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    /* Root Variables - 2024 Color Palette */
-    :root {
-        --primary-color: #FF9A8B;  /* Peach Fuzz 2024 */
-        --secondary-color: #A8E6CF;  /* Soft Mint */
-        --accent-color: #88D4F7;  /* Sky Blue */
-        --text-primary: #2C3E50;
-        --text-secondary: #7F8C8D;
-        --background: #FDFEFE;
-        --surface: #FFFFFF;
-        --border: #E8F4FD;
-        --shadow: rgba(44, 62, 80, 0.1);
-        --gradient-1: linear-gradient(135deg, #FF9A8B 0%, #FFEAA7 100%);
-        --gradient-2: linear-gradient(135deg, #A8E6CF 0%, #88D4F7 100%);
-    }
-
     /* Global Styles */
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1200px;
+    .main {
+        font-family: 'Inter', sans-serif;
     }
 
-    /* Hide Streamlit default elements */
-    #MainMenu {visibility: hidden;}
-    .stDeployButton {display: none;}
-    footer {visibility: hidden;}
-    .stApp > header {background: transparent;}
-
-    /* Custom Header */
-    .hero-section {
-        background: var(--gradient-1);
-        padding: 3rem 2rem;
-        border-radius: 1rem;
-        margin-bottom: 2rem;
-        text-align: center;
-        color: white;
-        box-shadow: 0 8px 32px var(--shadow);
-    }
-
-    .hero-title {
-        font-size: 3.5rem;
-        font-weight: 700;
-        margin-bottom: 1rem;
-        background: linear-gradient(45deg, #FFFFFF, #F8F9FA);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-
-    .hero-subtitle {
-        font-size: 1.3rem;
-        font-weight: 400;
-        opacity: 0.9;
-        max-width: 600px;
-        margin: 0 auto;
-    }
-
-    /* Feature Cards */
+    /* Custom Components */
     .feature-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 1rem;
-        padding: 2rem;
-        margin-bottom: 1.5rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 16px var(--shadow);
-        text-align: center;
-        cursor: pointer;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .feature-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: var(--gradient-2);
-        transition: all 0.5s ease;
-        z-index: -1;
-        opacity: 0;
-    }
-
-    .feature-card:hover::before {
-        left: 0;
-        opacity: 0.1;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        color: white;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
     }
 
     .feature-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 32px var(--shadow);
-        border-color: var(--primary-color);
-    }
-
-    .feature-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        display: block;
-    }
-
-    .feature-card h3 {
-        color: var(--text-primary);
-        font-size: 1.4rem;
-        font-weight: 600;
-        margin-bottom: 0.8rem;
-    }
-
-    .feature-card p {
-        color: var(--text-secondary);
-        font-size: 1rem;
-        line-height: 1.6;
-        margin-bottom: 0;
-    }
-
-    /* Enhanced Buttons */
-    .stButton > button {
-        background: var(--gradient-1);
-        color: white;
-        border: none;
-        border-radius: 0.75rem;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 16px rgba(255, 154, 139, 0.3);
-    }
-
-    .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(255, 154, 139, 0.4);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
     }
 
-    .stButton > button:focus {
-        outline: 3px solid rgba(255, 154, 139, 0.3);
-        outline-offset: 2px;
-    }
-
-    /* File Uploader */
-    .stFileUploader > div > div {
-        border: 2px dashed var(--primary-color);
-        border-radius: 1rem;
-        padding: 2rem;
-        background: linear-gradient(135deg, rgba(255, 154, 139, 0.05), rgba(168, 230, 207, 0.05));
-        transition: all 0.3s ease;
-    }
-
-    .stFileUploader > div > div:hover {
-        border-color: var(--accent-color);
-        background: linear-gradient(135deg, rgba(255, 154, 139, 0.1), rgba(168, 230, 207, 0.1));
-    }
-
-    /* Metrics */
-    .metric-container {
-        background: var(--surface);
-        border-radius: 1rem;
-        padding: 1.5rem;
-        border: 1px solid var(--border);
-        box-shadow: 0 4px 16px var(--shadow);
-        transition: all 0.3s ease;
-    }
-
-    .metric-container:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 24px var(--shadow);
-    }
-
-    /* Sidebar */
-    .css-1d391kg {
-        background: var(--gradient-2);
-    }
-
-    .css-1d391kg .stSelectbox > div > div {
-        background: var(--surface);
-        border-radius: 0.5rem;
-    }
-
-    /* Progress Bars */
-    .stProgress > div > div > div {
-        background: var(--gradient-1);
-        border-radius: 1rem;
-    }
-
-    /* Success/Error Messages */
-    .stSuccess {
-        background: linear-gradient(135deg, rgba(168, 230, 207, 0.1), rgba(136, 212, 247, 0.1));
-        border-left: 4px solid var(--secondary-color);
-        border-radius: 0.5rem;
-    }
-
-    .stError {
-        background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 154, 139, 0.1));
-        border-left: 4px solid #FF6B6B;
-        border-radius: 0.5rem;
-    }
-
-    .stWarning {
-        background: linear-gradient(135deg, rgba(255, 234, 167, 0.1), rgba(255, 154, 139, 0.1));
-        border-left: 4px solid #FFEAA7;
-        border-radius: 0.5rem;
-    }
-
-    /* Footer */
-    .footer {
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-        padding: 2rem;
+    .score-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 1.1rem;
         text-align: center;
-        margin-top: 3rem;
-        border-radius: 1rem 1rem 0 0;
+        margin: 0.5rem 0;
     }
 
-    .footer p {
-        color: var(--text-secondary);
-        margin: 0;
+    .score-excellent {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
     }
 
-    .footer a {
-        color: var(--primary-color);
-        text-decoration: none;
-        font-weight: 500;
+    .score-good {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
     }
 
-    .footer a:hover {
-        text-decoration: underline;
+    .score-average {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+    }
+
+    .score-poor {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        color: white;
+    }
+
+    .alert-success {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .alert-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .alert-error {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .alert-info {
+        background-color: #d1ecf1;
+        border: 1px solid #bee5eb;
+        color: #0c5460;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .progress-container {
+        background-color: #e9ecef;
+        border-radius: 25px;
+        padding: 3px;
+        margin: 1rem 0;
+    }
+
+    .progress-bar {
+        height: 25px;
+        border-radius: 25px;
+        text-align: center;
+        line-height: 25px;
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: width 0.6s ease;
+    }
+
+    .metric-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #667eea;
+        margin: 1rem 0;
+    }
+
+    .recommendation-item {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        border-left: 3px solid #28a745;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+        animation: fadeIn 0.5s ease-in-out;
     }
 
     /* Responsive Design */
     @media (max-width: 768px) {
-        .hero-title {
-            font-size: 2.5rem;
-        }
-
-        .hero-subtitle {
-            font-size: 1.1rem;
-        }
-
         .feature-card {
-            padding: 1.5rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
         }
 
-        .feature-icon {
-            font-size: 2.5rem;
-        }
-    }
-
-    /* Loading Animations */
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-
-    .loading {
-        animation: pulse 2s infinite;
-    }
-
-    /* Focus Indicators for Accessibility */
-    *:focus {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 2px;
-    }
-
-    /* High Contrast Mode Support */
-    @media (prefers-contrast: high) {
-        :root {
-            --primary-color: #D63384;
-            --secondary-color: #198754;
-            --text-primary: #000000;
-            --text-secondary: #212529;
-        }
-    }
-
-    /* Reduced Motion Support */
-    @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
+        .metric-card {
+            padding: 1rem;
         }
     }
     </style>
     """
+    st.markdown(css, unsafe_allow_html=True)
 
-    st.markdown(css_content, unsafe_allow_html=True)
-
-def create_hero_section():
-    """Create the hero section with modern design"""
-    st.markdown("""
-    <div class="hero-section">
-        <h1 class="hero-title">🎯 AI Resume Analyzer Pro</h1>
-        <p class="hero-subtitle">
-            Transform your career with AI-powered resume optimization, 
-            ATS compatibility checking, and personalized job matching
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-def create_feature_card(icon, title, description, link=None):
-    """Create a feature card with modern styling"""
+def create_feature_card(title: str, description: str, icon: str = "⭐") -> None:
+    """Create a styled feature card."""
     card_html = f"""
-    <div class="feature-card" {'onclick="window.location.href=\'{link}\'"' if link else ''}>
-        <div class="feature-icon">{icon}</div>
-        <h3>{title}</h3>
+    <div class="feature-card fade-in">
+        <h3>{icon} {title}</h3>
         <p>{description}</p>
     </div>
     """
     st.markdown(card_html, unsafe_allow_html=True)
 
-def create_metric_card(title, value, delta=None, icon="📊"):
-    """Create a metric card with enhanced styling"""
-    delta_html = f'<div class="metric-delta">{delta}</div>' if delta else ''
+def create_score_badge(score: float, label: str = "Score") -> None:
+    """Create a styled score badge with color coding."""
+    if score >= 85:
+        css_class = "score-excellent"
+    elif score >= 70:
+        css_class = "score-good"
+    elif score >= 50:
+        css_class = "score-average"
+    else:
+        css_class = "score-poor"
 
-    card_html = f"""
-    <div class="metric-container">
-        <div class="metric-icon">{icon}</div>
-        <div class="metric-title">{title}</div>
-        <div class="metric-value">{value}</div>
-        {delta_html}
+    badge_html = f"""
+    <div class="score-badge {css_class}">
+        {label}: {score:.0f}/100
     </div>
     """
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.markdown(badge_html, unsafe_allow_html=True)
 
-def create_progress_bar(value, max_value=100, label="Progress", color="primary"):
-    """Create an enhanced progress bar"""
-    percentage = (value / max_value) * 100
-
-    progress_html = f"""
-    <div class="progress-container">
-        <div class="progress-label">{label}</div>
-        <div class="progress-bar">
-            <div class="progress-fill progress-{color}" style="width: {percentage}%"></div>
-        </div>
-        <div class="progress-text">{value}/{max_value} ({percentage:.1f}%)</div>
-    </div>
+def create_alert(message: str, alert_type: str = "info") -> None:
     """
-    st.markdown(progress_html, unsafe_allow_html=True)
+    Create styled alert boxes.
 
-def create_alert(message, alert_type="info", icon="ℹ️"):
-    """Create a modern alert component"""
+    Args:
+        message: Alert message
+        alert_type: Type of alert (success, warning, error, info)
+    """
     alert_html = f"""
-    <div class="alert alert-{alert_type}">
-        <div class="alert-icon">{icon}</div>
-        <div class="alert-content">{message}</div>
+    <div class="alert-{alert_type}">
+        {message}
     </div>
     """
     st.markdown(alert_html, unsafe_allow_html=True)
 
-def create_sidebar_navigation():
-    """Create enhanced sidebar navigation"""
-    st.sidebar.markdown("""
-    <div class="sidebar-header">
-        <h2>🎯 Navigation</h2>
+def create_progress_bar(value: float, max_value: float = 100, 
+                       label: str = "", color: str = "#667eea") -> None:
+    """Create an animated progress bar."""
+    percentage = (value / max_value) * 100
+
+    progress_html = f"""
+    <div class="progress-container">
+        <div class="progress-bar" style="width: {percentage}%; background: {color};">
+            {label} {percentage:.0f}%
+        </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(progress_html, unsafe_allow_html=True)
 
-    pages = [
-        ("🏠", "Home", "/"),
-        ("📊", "ATS Checker", "/1_📊_ATS_Score_Checker"),
-        ("🎯", "Job Matcher", "/2_🎯_Job_Matcher"),
-        ("📈", "Analytics", "/3_📈_Analytics_Dashboard"),
-        ("📝", "Resume Builder", "/4_📝_Resume_Builder"),
-        ("💬", "Feedback", "/5_💬_Feedback_System")
-    ]
+def create_metric_card(title: str, value: str, delta: str = "", 
+                      delta_color: str = "normal") -> None:
+    """Create a styled metric card."""
+    delta_style = ""
+    if delta:
+        if delta_color == "positive":
+            delta_style = "color: #28a745;"
+        elif delta_color == "negative":
+            delta_style = "color: #dc3545;"
 
-    for icon, name, url in pages:
-        if st.sidebar.button(f"{icon} {name}", key=f"nav_{name.lower()}", use_container_width=True):
-            st.switch_page(url if url != "/" else "app.py")
+    card_html = f"""
+    <div class="metric-card fade-in">
+        <h4 style="margin: 0; color: #495057;">{title}</h4>
+        <h2 style="margin: 0.5rem 0; color: #212529;">{value}</h2>
+        {f'<p style="margin: 0; {delta_style}">{delta}</p>' if delta else ''}
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
 
-def get_icon(name):
-    """Get icon for consistent usage throughout the app"""
-    icons = {
-        "upload": "📁",
-        "analyze": "🔍",
-        "score": "📊",
-        "match": "🎯",
-        "build": "📝",
-        "download": "⬇️",
-        "share": "📤",
-        "settings": "⚙️",
-        "help": "❓",
-        "success": "✅",
-        "warning": "⚠️",
-        "error": "❌",
-        "info": "ℹ️"
-    }
-    return icons.get(name, "📌")
+def create_recommendation_list(recommendations: List[str], 
+                             title: str = "Recommendations") -> None:
+    """Create a styled list of recommendations."""
+    st.subheader(title)
 
-def apply_theme(theme_name="modern"):
-    """Apply different theme variations"""
-    themes = {
-        "modern": {
-            "primary": "#FF9A8B",
-            "secondary": "#A8E6CF",
-            "accent": "#88D4F7"
-        },
-        "professional": {
-            "primary": "#2C3E50",
-            "secondary": "#3498DB",
-            "accent": "#E74C3C"
-        },
-        "creative": {
-            "primary": "#9B59B6",
-            "secondary": "#F39C12",
-            "accent": "#1ABC9C"
+    for i, recommendation in enumerate(recommendations, 1):
+        rec_html = f"""
+        <div class="recommendation-item fade-in">
+            <strong>{i}.</strong> {recommendation}
+        </div>
+        """
+        st.markdown(rec_html, unsafe_allow_html=True)
+
+def create_two_column_layout(left_content, right_content):
+    """Create a responsive two-column layout."""
+    col1, col2 = st.columns(2)
+
+    with col1:
+        left_content()
+
+    with col2:
+        right_content()
+
+def create_tabs_container(tabs_config: Dict[str, callable]):
+    """
+    Create a tabbed interface with custom content.
+
+    Args:
+        tabs_config: Dictionary with tab names as keys and functions as values
+    """
+    tabs = st.tabs(list(tabs_config.keys()))
+
+    for tab, (tab_name, content_func) in zip(tabs, tabs_config.items()):
+        with tab:
+            content_func()
+
+def display_file_info(file_info: Dict[str, Any]) -> None:
+    """Display file information in a styled card."""
+    if not file_info:
+        return
+
+    info_html = f"""
+    <div class="metric-card">
+        <h4>📄 File Information</h4>
+        <p><strong>Name:</strong> {file_info.get('name', 'N/A')}</p>
+        <p><strong>Size:</strong> {file_info.get('size', 0):,} bytes</p>
+        <p><strong>Type:</strong> {file_info.get('extension', 'unknown').upper()}</p>
+    </div>
+    """
+    st.markdown(info_html, unsafe_allow_html=True)
+
+def create_radar_chart(data: Dict[str, float], title: str = "Skills Assessment"):
+    """Create a radar chart for skills or scores visualization."""
+    categories = list(data.keys())
+    values = list(data.values())
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatterpolar(
+        r=values,
+        theta=categories,
+        fill='toself',
+        name='Score',
+        line_color='#667eea',
+        fillcolor='rgba(102, 126, 234, 0.25)'
+    ))
+
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100]
+            )),
+        showlegend=False,
+        title=title,
+        font=dict(family="Inter, sans-serif")
+    )
+
+    return fig
+
+def create_score_distribution_chart(scores: Dict[str, float]):
+    """Create a horizontal bar chart for score distribution."""
+    categories = list(scores.keys())
+    values = list(scores.values())
+
+    # Color code based on score ranges
+    colors = []
+    for score in values:
+        if score >= 85:
+            colors.append('#28a745')  # Green
+        elif score >= 70:
+            colors.append('#17a2b8')  # Blue
+        elif score >= 50:
+            colors.append('#ffc107')  # Yellow
+        else:
+            colors.append('#dc3545')  # Red
+
+    fig = go.Figure(go.Bar(
+        x=values,
+        y=categories,
+        orientation='h',
+        marker_color=colors,
+        text=[f'{v:.0f}' for v in values],
+        textposition='inside'
+    ))
+
+    fig.update_layout(
+        title="Score Breakdown",
+        xaxis_title="Score",
+        yaxis_title="Category",
+        font=dict(family="Inter, sans-serif"),
+        showlegend=False
+    )
+
+    return fig
+
+def create_timeline_chart(data: List[Dict], title: str = "Career Timeline"):
+    """Create a timeline visualization for career progression."""
+    if not data:
+        return None
+
+    dates = [item.get('date', '') for item in data]
+    events = [item.get('event', '') for item in data]
+    descriptions = [item.get('description', '') for item in data]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=list(range(len(dates))),
+        mode='markers+lines+text',
+        text=events,
+        textposition='top center',
+        marker=dict(size=10, color='#667eea'),
+        line=dict(color='#667eea', width=2),
+        hovertext=descriptions,
+        hoverinfo='text'
+    ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Timeline",
+        yaxis=dict(showticklabels=False),
+        font=dict(family="Inter, sans-serif")
+    )
+
+    return fig
+
+def show_loading_spinner(message: str = "Processing..."):
+    """Show a loading spinner with custom message."""
+    return st.spinner(f"🔄 {message}")
+
+def create_download_button(data: str, filename: str, label: str = "Download"):
+    """Create a styled download button."""
+    b64 = base64.b64encode(data.encode()).decode()
+    href = f'<a href="data:text/plain;base64,{b64}" download="{filename}">{label}</a>'
+    st.markdown(href, unsafe_allow_html=True)
+
+def display_success_message(message: str):
+    """Display a success message with animation."""
+    create_alert(f"✅ {message}", "success")
+
+def display_warning_message(message: str):
+    """Display a warning message."""
+    create_alert(f"⚠️ {message}", "warning")
+
+def display_error_message(message: str):
+    """Display an error message."""
+    create_alert(f"❌ {message}", "error")
+
+def display_info_message(message: str):
+    """Display an info message."""
+    create_alert(f"ℹ️ {message}", "info")
+
+def create_sidebar_navigation():
+    """Create enhanced sidebar navigation."""
+    st.sidebar.title("🎯 Resume Analyzer Pro")
+    st.sidebar.markdown("---")
+
+    # Add navigation info
+    nav_info = """
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                padding: 1rem; border-radius: 8px; color: white; margin-bottom: 1rem;">
+        <h4 style="margin: 0;">Navigation Guide</h4>
+        <p style="margin: 0.5rem 0;">Use the pages above to access different features:</p>
+        <ul style="margin: 0; padding-left: 1rem;">
+            <li>📊 ATS Score Checker</li>
+            <li>🎯 Job Matcher</li>
+            <li>📈 Analytics Dashboard</li>
+            <li>📝 Resume Builder</li>
+            <li>💬 Feedback System</li>
+        </ul>
+    </div>
+    """
+    st.sidebar.markdown(nav_info, unsafe_allow_html=True)
+
+    # Add current time
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    st.sidebar.caption(f"Last updated: {current_time}")
+
+def initialize_session_state():
+    """Initialize session state variables for the application."""
+    default_values = {
+        'analyzed_resumes': [],
+        'analysis_history': [],
+        'current_resume_text': None,
+        'current_resume_data': None,
+        'user_feedback': [],
+        'app_settings': {
+            'theme': 'default',
+            'ai_enabled': True,
+            'advanced_features': True
         }
     }
 
-    if theme_name in themes:
-        theme = themes[theme_name]
-        st.session_state['current_theme'] = theme
-        return theme
-    return themes["modern"]
+    for key, value in default_values.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+def clear_session_data():
+    """Clear session data with user confirmation."""
+    if st.button("🗑️ Clear All Data", type="secondary"):
+        if st.checkbox("I confirm I want to clear all data"):
+            for key in st.session_state.keys():
+                if key.startswith(('analyzed_', 'current_', 'user_')):
+                    del st.session_state[key]
+            st.success("✅ All data cleared successfully!")
+            st.rerun()

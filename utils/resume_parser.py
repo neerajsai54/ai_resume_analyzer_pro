@@ -1,282 +1,287 @@
+"""
+Resume Parser Module
+Handles parsing of various resume formats (PDF, DOCX, TXT)
+Optimized for Streamlit applications.
+"""
+
 import streamlit as st
 import pdfplumber
-from docx import Document
-import io
+import docx
+from typing import Optional, Dict, Any, Tuple
 import re
-from typing import Dict, Optional, List
 import logging
-from pathlib import Path
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
 class ResumeParser:
-    """Enhanced resume parser with multiple format support"""
+    """
+    A comprehensive resume parser that handles multiple file formats
+    and extracts text content for analysis.
+    """
+
+    SUPPORTED_FORMATS = ['pdf', 'docx', 'txt']
 
     def __init__(self):
-        self.supported_formats = ['.pdf', '.docx', '.txt']
+        self.supported_extensions = self.SUPPORTED_FORMATS
 
-    def parse_file(self, uploaded_file) -> Dict[str, str]:
-        """Parse uploaded file and extract text content"""
-        if uploaded_file is None:
-            return {"error": "No file uploaded"}
+    def parse_resume(self, uploaded_file) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Parse uploaded resume file and extract text content.
 
-        file_extension = Path(uploaded_file.name).suffix.lower()
+        Args:
+            uploaded_file: Streamlit uploaded file object
+
+        Returns:
+            Tuple of (extracted_text, metadata) or (None, None) if failed
+        """
+        if not uploaded_file:
+            return None, None
 
         try:
-            if file_extension == '.pdf':
-                return self._parse_pdf(uploaded_file)
-            elif file_extension == '.docx':
-                return self._parse_docx(uploaded_file)
-            elif file_extension == '.txt':
-                return self._parse_txt(uploaded_file)
-            else:
-                return {"error": f"Unsupported file format: {file_extension}"}
+            # Get file extension
+            file_extension = uploaded_file.name.split('.')[-1].lower()
 
-        except Exception as e:
-            logger.error(f"Error parsing file {uploaded_file.name}: {e}")
-            return {"error": f"Failed to parse file: {str(e)}"}
+            if file_extension not in self.supported_extensions:
+                st.error(f"❌ Unsupported file format: {file_extension}")
+                st.info(f"Supported formats: {', '.join(self.SUPPORTED_FORMATS)}")
+                return None, None
 
-    def _parse_pdf(self, uploaded_file) -> Dict[str, str]:
-        """Extract text from PDF file"""
-        try:
-            # Reset file pointer
-            uploaded_file.seek(0)
-            text_content = ""
-
-            with pdfplumber.open(uploaded_file) as pdf:
-                for page_num, page in enumerate(pdf.pages, 1):
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_content += f"\n--- Page {page_num} ---\n"
-                        text_content += page_text
-                        text_content += "\n"
-
-            if not text_content.strip():
-                return {"error": "No text could be extracted from PDF"}
-
-            return {
-                "raw_text": text_content,
-                "file_type": "pdf",
-                "page_count": len(pdf.pages),
-                "file_name": uploaded_file.name
+            # Create metadata
+            metadata = {
+                'filename': uploaded_file.name,
+                'file_size': uploaded_file.size,
+                'file_type': file_extension,
+                'mime_type': uploaded_file.type
             }
 
+            # Extract text based on file type
+            text_content = None
+
+            if file_extension == 'pdf':
+                text_content = self._parse_pdf(uploaded_file)
+            elif file_extension == 'docx':
+                text_content = self._parse_docx(uploaded_file)
+            elif file_extension == 'txt':
+                text_content = self._parse_txt(uploaded_file)
+
+            if text_content:
+                # Clean and normalize text
+                text_content = self._clean_text(text_content)
+                metadata['character_count'] = len(text_content)
+                metadata['word_count'] = len(text_content.split())
+
+                return text_content, metadata
+            else:
+                st.error("❌ Failed to extract text from the uploaded file.")
+                return None, None
+
         except Exception as e:
-            logger.error(f"PDF parsing error: {e}")
-            return {"error": f"PDF parsing failed: {str(e)}"}
+            logger.error(f"Error parsing resume: {str(e)}")
+            st.error(f"❌ Error processing file: {str(e)}")
+            return None, None
 
-    def _parse_docx(self, uploaded_file) -> Dict[str, str]:
-        """Extract text from DOCX file"""
+    def _parse_pdf(self, uploaded_file) -> Optional[str]:
+        """Extract text from PDF file using pdfplumber."""
         try:
-            uploaded_file.seek(0)
-            doc = Document(uploaded_file)
-
             text_content = ""
-            paragraph_count = 0
 
+            with pdfplumber.open(BytesIO(uploaded_file.getvalue())) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_content += page_text + "\n"
+                        else:
+                            # If no text found, try extracting from images (OCR-like)
+                            st.warning(f"⚠️ Page {page_num + 1} may contain images or non-standard text.")
+                    except Exception as e:
+                        logger.warning(f"Error extracting page {page_num + 1}: {str(e)}")
+                        continue
+
+            return text_content.strip() if text_content.strip() else None
+
+        except Exception as e:
+            logger.error(f"PDF parsing error: {str(e)}")
+            st.error("❌ Failed to parse PDF. File may be corrupted or password-protected.")
+            return None
+
+    def _parse_docx(self, uploaded_file) -> Optional[str]:
+        """Extract text from DOCX file using python-docx."""
+        try:
+            doc = docx.Document(BytesIO(uploaded_file.getvalue()))
+            text_content = ""
+
+            # Extract text from paragraphs
             for paragraph in doc.paragraphs:
                 if paragraph.text.strip():
                     text_content += paragraph.text + "\n"
-                    paragraph_count += 1
 
-            # Extract text from tables if any
-            table_content = ""
+            # Extract text from tables
             for table in doc.tables:
                 for row in table.rows:
-                    row_text = []
                     for cell in row.cells:
                         if cell.text.strip():
-                            row_text.append(cell.text.strip())
-                    if row_text:
-                        table_content += " | ".join(row_text) + "\n"
+                            text_content += cell.text + " "
+                    text_content += "\n"
 
-            if table_content:
-                text_content += "\n--- Table Content ---\n" + table_content
-
-            if not text_content.strip():
-                return {"error": "No text could be extracted from DOCX"}
-
-            return {
-                "raw_text": text_content,
-                "file_type": "docx",
-                "paragraph_count": paragraph_count,
-                "table_count": len(doc.tables),
-                "file_name": uploaded_file.name
-            }
+            return text_content.strip() if text_content.strip() else None
 
         except Exception as e:
-            logger.error(f"DOCX parsing error: {e}")
-            return {"error": f"DOCX parsing failed: {str(e)}"}
+            logger.error(f"DOCX parsing error: {str(e)}")
+            st.error("❌ Failed to parse DOCX file. File may be corrupted.")
+            return None
 
-    def _parse_txt(self, uploaded_file) -> Dict[str, str]:
-        """Extract text from TXT file"""
+    def _parse_txt(self, uploaded_file) -> Optional[str]:
+        """Extract text from TXT file."""
         try:
-            uploaded_file.seek(0)
-
             # Try different encodings
-            encodings = ['utf-8', 'latin-1', 'cp1252']
-            text_content = None
+            encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
 
             for encoding in encodings:
                 try:
-                    uploaded_file.seek(0)
-                    text_content = uploaded_file.read().decode(encoding)
-                    break
+                    text_content = uploaded_file.getvalue().decode(encoding)
+                    return text_content.strip()
                 except UnicodeDecodeError:
                     continue
 
-            if text_content is None:
-                return {"error": "Could not decode text file with any supported encoding"}
-
-            if not text_content.strip():
-                return {"error": "Text file appears to be empty"}
-
-            line_count = len(text_content.split('\n'))
-
-            return {
-                "raw_text": text_content,
-                "file_type": "txt",
-                "line_count": line_count,
-                "file_name": uploaded_file.name
-            }
+            st.error("❌ Could not decode text file. Please ensure it's in a supported encoding.")
+            return None
 
         except Exception as e:
-            logger.error(f"TXT parsing error: {e}")
-            return {"error": f"TXT parsing failed: {str(e)}"}
+            logger.error(f"TXT parsing error: {str(e)}")
+            st.error("❌ Failed to parse text file.")
+            return None
 
-    def extract_contact_info(self, text: str) -> Dict[str, Optional[str]]:
-        """Extract contact information from resume text"""
-        contact_info = {
-            "email": None,
-            "phone": None,
-            "linkedin": None,
-            "location": None
+    def _clean_text(self, text: str) -> str:
+        """Clean and normalize extracted text."""
+        if not text:
+            return ""
+
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text)
+
+        # Remove special characters that might interfere with processing
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\xff]', '', text)
+
+        # Normalize line breaks
+        text = re.sub(r'\n+', '\n', text)
+
+        # Remove leading/trailing whitespace
+        text = text.strip()
+
+        return text
+
+    def extract_basic_info(self, text: str) -> Dict[str, Any]:
+        """
+        Extract basic information from resume text using regex patterns.
+        This is a fallback method when AI analysis is not available.
+        """
+        info = {
+            'emails': [],
+            'phones': [],
+            'urls': [],
+            'name_candidates': []
         }
+
+        if not text:
+            return info
 
         # Email extraction
         email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        email_match = re.search(email_pattern, text)
-        if email_match:
-            contact_info["email"] = email_match.group()
+        info['emails'] = list(set(re.findall(email_pattern, text)))
 
-        # Phone extraction (various formats)
+        # Phone number extraction (various formats)
         phone_patterns = [
-            r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b',
-            r'\b[0-9]{3}-[0-9]{3}-[0-9]{4}\b',
-            r'\b\([0-9]{3}\) [0-9]{3}-[0-9]{4}\b'
+            r'\b(?:\+?1[-\s]?)?\(?[0-9]{3}\)?[-\s]?[0-9]{3}[-\s]?[0-9]{4}\b',
+            r'\b[0-9]{3}[-\.]?[0-9]{3}[-\.]?[0-9]{4}\b',
+            r'\b\([0-9]{3}\)\s?[0-9]{3}[-\s]?[0-9]{4}\b'
         ]
 
+        phones = []
         for pattern in phone_patterns:
-            phone_match = re.search(pattern, text)
-            if phone_match:
-                contact_info["phone"] = phone_match.group()
-                break
+            phones.extend(re.findall(pattern, text))
+        info['phones'] = list(set(phones))
 
-        # LinkedIn extraction
-        linkedin_pattern = r'(?:linkedin\.com/in/|linkedin\.com/pub/)([A-Za-z0-9-]+)'
-        linkedin_match = re.search(linkedin_pattern, text, re.IGNORECASE)
-        if linkedin_match:
-            contact_info["linkedin"] = f"linkedin.com/in/{linkedin_match.group(1)}"
+        # URL extraction
+        url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+        info['urls'] = list(set(re.findall(url_pattern, text)))
 
-        # Location extraction (basic city, state pattern)
-        location_pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z]{2})\b'
-        location_match = re.search(location_pattern, text)
-        if location_match:
-            contact_info["location"] = location_match.group()
+        # Name candidates (first few lines, capitalized words)
+        lines = text.split('\n')[:5]  # Check first 5 lines
+        for line in lines:
+            # Look for properly capitalized names (2-4 words, each capitalized)
+            name_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b'
+            matches = re.findall(name_pattern, line.strip())
+            info['name_candidates'].extend(matches)
 
-        return contact_info
+        # Remove duplicates and sort
+        info['name_candidates'] = list(set(info['name_candidates']))
 
-    def extract_sections(self, text: str) -> Dict[str, str]:
-        """Extract common resume sections"""
-        sections = {}
+        return info
 
-        # Common section headers - using raw strings
-        section_patterns = {
-            "summary": r'(?:professional\s+summary|summary|objective|profile)\s*:?\s*\n(.*?)(?=\n\s*(?:[A-Z][A-Z\s]+|$))',
-            "experience": r'(?:work\s+experience|experience|employment|professional\s+experience)\s*:?\s*\n(.*?)(?=\n\s*(?:[A-Z][A-Z\s]+|$))',
-            "education": r'(?:education|academic\s+background)\s*:?\s*\n(.*?)(?=\n\s*(?:[A-Z][A-Z\s]+|$))',
-            "skills": r'(?:skills|technical\s+skills|core\s+competencies)\s*:?\s*\n(.*?)(?=\n\s*(?:[A-Z][A-Z\s]+|$))',
-            "certifications": r'(?:certifications|certificates|licenses)\s*:?\s*\n(.*?)(?=\n\s*(?:[A-Z][A-Z\s]+|$))'
+    def validate_file(self, uploaded_file) -> Tuple[bool, str]:
+        """
+        Validate uploaded file before processing.
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not uploaded_file:
+            return False, "No file uploaded"
+
+        # Check file size (limit to 10MB)
+        if uploaded_file.size > 10 * 1024 * 1024:
+            return False, "File size exceeds 10MB limit"
+
+        # Check file extension
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        if file_extension not in self.SUPPORTED_FORMATS:
+            return False, f"Unsupported file format: {file_extension}"
+
+        # Check filename
+        if not uploaded_file.name or len(uploaded_file.name) < 1:
+            return False, "Invalid filename"
+
+        return True, "File is valid"
+
+    def get_file_info(self, uploaded_file) -> Dict[str, Any]:
+        """Get basic information about the uploaded file."""
+        if not uploaded_file:
+            return {}
+
+        return {
+            'name': uploaded_file.name,
+            'size': uploaded_file.size,
+            'type': uploaded_file.type,
+            'extension': uploaded_file.name.split('.')[-1].lower() if '.' in uploaded_file.name else 'unknown'
         }
 
-        for section_name, pattern in section_patterns.items():
-            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if match:
-                sections[section_name] = match.group(1).strip()
+# Utility function for easy import
+def parse_uploaded_resume(uploaded_file):
+    """
+    Convenience function to parse an uploaded resume file.
 
-        return sections
+    Args:
+        uploaded_file: Streamlit uploaded file object
 
-    def get_file_stats(self, parsed_data: Dict) -> Dict[str, any]:
-        """Get file statistics for analysis"""
-        if "error" in parsed_data:
-            return {"error": parsed_data["error"]}
+    Returns:
+        Tuple of (text_content, metadata, basic_info)
+    """
+    parser = ResumeParser()
 
-        text = parsed_data.get("raw_text", "")
+    # Validate file first
+    is_valid, error_msg = parser.validate_file(uploaded_file)
+    if not is_valid:
+        st.error(f"❌ {error_msg}")
+        return None, None, None
 
-        stats = {
-            "character_count": len(text),
-            "word_count": len(text.split()),
-            "line_count": len(text.split('\n')),
-            "file_type": parsed_data.get("file_type", "unknown"),
-            "file_name": parsed_data.get("file_name", "unknown")
-        }
+    # Parse the file
+    text_content, metadata = parser.parse_resume(uploaded_file)
 
-        # Add format-specific stats
-        if parsed_data.get("file_type") == "pdf":
-            stats["page_count"] = parsed_data.get("page_count", 0)
-        elif parsed_data.get("file_type") == "docx":
-            stats["paragraph_count"] = parsed_data.get("paragraph_count", 0)
-            stats["table_count"] = parsed_data.get("table_count", 0)
+    if text_content:
+        # Extract basic info as fallback
+        basic_info = parser.extract_basic_info(text_content)
+        return text_content, metadata, basic_info
 
-        return stats
-
-    def validate_resume_content(self, text: str) -> Dict[str, any]:
-        """Validate resume content for completeness"""
-        validation = {
-            "has_contact_info": False,
-            "has_experience": False,
-            "has_education": False,
-            "has_skills": False,
-            "word_count_ok": False,
-            "issues": []
-        }
-
-        # Check for contact information
-        contact_info = self.extract_contact_info(text)
-        if contact_info["email"] or contact_info["phone"]:
-            validation["has_contact_info"] = True
-        else:
-            validation["issues"].append("Missing contact information (email or phone)")
-
-        # Check for key sections
-        sections = self.extract_sections(text)
-
-        if sections.get("experience"):
-            validation["has_experience"] = True
-        else:
-            validation["issues"].append("Missing work experience section")
-
-        if sections.get("education"):
-            validation["has_education"] = True
-        else:
-            validation["issues"].append("Missing education section")
-
-        if sections.get("skills"):
-            validation["has_skills"] = True
-        else:
-            validation["issues"].append("Missing skills section")
-
-        # Check word count
-        word_count = len(text.split())
-        if 200 <= word_count <= 1000:
-            validation["word_count_ok"] = True
-        else:
-            if word_count < 200:
-                validation["issues"].append("Resume too short (< 200 words)")
-            else:
-                validation["issues"].append("Resume too long (> 1000 words)")
-
-        return validation
-
-# Global parser instance
-resume_parser = ResumeParser()
+    return None, None, None
